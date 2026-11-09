@@ -133,11 +133,32 @@ class LFO:
 
 class Flanger:
     def __init__(self, sample_rate):
-        pass
+        self.max_delay = int(0.002 * sample_rate)
+        self.delay_line = FractionalDelayLine(self.max_delay)
+        self.middle_delay = self.max_delay / 2
+        self.feedback = 0.7
+        self.feedforward = 0.7
+        self.blend = 0.7
+        # lfo stuff
+        self.lfo = LFO(sample_rate)
+        self.lfo_frequency = 2
+        self.lfo.set_frequency(self.lfo_frequency)
 
     def process_sample(self, input_sample):
-        return input_sample
+        # m = sLFO(unipolar)[n] * max_delay
+        bipolar_lfo = self.lfo.get_next_value()
+        unipolar_lfo = bipolar_lfo * 0.5 + 0.5
+        m = unipolar_lfo * self.max_delay
 
+        # xh[n] = x[n] + feedback * xh[n - max_delay/2]
+        x = input_sample
+        xh = x + self.feedback * self.delay_line.pop_sample(self.middle_delay)
+        self.delay_line.push_sample(xh)
+
+        # y[n] = blend * xh[n] + feedforward * xh[n - m]
+        y = self.blend * xh + self.feedforward * self.delay_line.pop_sample(m)
+
+        return y
 
 def apply_flanger(samples, sample_rate):
     output = np.zeros_like(samples)
